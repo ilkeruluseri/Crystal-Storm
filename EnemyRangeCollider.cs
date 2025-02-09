@@ -13,7 +13,8 @@ public class EnemyRangeCollider : MonoBehaviour
     }
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (enemyParent != null && other.GetComponent<BuildingScript>() != null)
+        if (enemyParent != null && (other.GetComponent<BuildingScript>() != null || other.GetComponent<Player>() != null ||
+            other.GetComponent<BaseBuilding>() != null))
         {
             enemyParent.AddObjectInRange(other.gameObject);
         }
@@ -21,7 +22,8 @@ public class EnemyRangeCollider : MonoBehaviour
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (enemyParent != null && other.GetComponent<BuildingScript>() != null)
+        if (enemyParent != null && (other.GetComponent<BuildingScript>() != null || other.GetComponent<Player>() != null ||
+            other.GetComponent<BaseBuilding>() != null))
         {
             enemyParent.RemoveObjectInRange(other.gameObject);
         }

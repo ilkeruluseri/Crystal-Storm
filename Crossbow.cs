@@ -12,6 +12,7 @@ public class Crossbow : MonoBehaviour
     [SerializeField] private GameObject crossbow;
     [SerializeField] private LayerMask enemyMask;
     [SerializeField] private CrossbowAnimationController animationController;
+    private AudioManager audioManager;
 
     [Header("Attributes")]
     [SerializeField] private float targetingRange = 5f;
@@ -20,6 +21,11 @@ public class Crossbow : MonoBehaviour
 
     private Transform target;
     private float timeUntilFire;
+
+    private void Start()
+    {
+        audioManager = FindObjectOfType<AudioManager>();
+    }
 
     private void Update()
     {
@@ -67,6 +73,7 @@ public class Crossbow : MonoBehaviour
 
     private void Shoot()
     {
+        if (target == null) { return; }
         GameObject bulletObj = Instantiate(bulletPrefab, firingPoint.position, firingPoint.rotation);
         BulletScript bulletScript = bulletObj.GetComponent<BulletScript>();
         bulletScript.SetTarget(target);
@@ -95,6 +102,7 @@ public class Crossbow : MonoBehaviour
 
     public void ShootCrossBow()
     {
+        audioManager.Play("fireBow");
         Shoot();
     }
 

@@ -1,31 +1,49 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 public class Enemy : MonoBehaviour
 {
+    [SerializeField] public int MAX_HEALTH = 10;
     [SerializeField] private int health = 10;
-    [SerializeField] private float moveSpeed = 30f;
-    [SerializeField] private int attackDamage = 5;
-    [SerializeField] private Animator animator;
+    [SerializeField] public float moveSpeed = 30f;
+    [SerializeField] public int attackDamage = 5;
+    [SerializeField] public Animator animator;
+    
 
-    [SerializeField] float desiredDistanceFromTarget = 6f;
+    [SerializeField] float desiredDistanceFromTarget = 1f;
     [SerializeField] ParticleSystem myParticleSystem;
+    [SerializeField] string particleSFX;
+    [SerializeField] ParticleSystem hitEffect;
     
     private Transform target;
-    private List<GameObject> objectsInRange = new List<GameObject>();
-    private bool isAttacking = false;
-    private bool isMoving = false;
+    [HideInInspector] public List<GameObject> objectsInRange = new List<GameObject>();
+    [HideInInspector] public bool isAttacking = false;
+    [HideInInspector] public bool isMoving = false;
+    private StormManager stormManager;
+    private int aliveIndex;
+    AudioManager audioManager;
+    SpriteRenderer spriteRenderer;
+
 
     private void Start()
     {
+        health = MAX_HEALTH;
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        stormManager = (StormManager)FindObjectOfType(typeof(StormManager));
+        audioManager = FindObjectOfType<AudioManager>();
+        SpawnEffect();
+        stormManager.AddtoAliveList(gameObject);
+        audioManager.Play("thunder");
     }
 
     private void Update()
     {
-        FindNearestBuilding();
+        SetTarget();
         if (target != null)
         {
+            CalculateDesiredDistance();
             float distanceToTarget = Vector2.Distance(transform.position, target.position);
             if (distanceToTarget > desiredDistanceFromTarget)
             {
@@ -37,49 +55,35 @@ public class Enemy : MonoBehaviour
                 isMoving = false;
             }
         }
-        if (objectsInRange.Count > 0)
-        {
-            isAttacking = true;
-        }
-        else
-        {
-            isAttacking = false;
-        }
-
-        animator.SetBool("isAttacking", isAttacking);
+        
         animator.SetBool("isMoving", isMoving);
-    }
-
-    /* / Detect objects entering attack range
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.GetComponent<BuildingScript>() != null)
+        Vector2 movement = Vector2.zero;
+        if (target != null)
         {
-            objectsInRange.Add(other.gameObject);
+            movement = (target.position - transform.position).normalized;
+        }
+        // Flip the character based on horizontal movement
+        if (movement.x < 0)
+        {
+            spriteRenderer.flipX = true;
+        }
+        else if (movement.x > 0)
+        {
+            spriteRenderer.flipX = false;
         }
     }
-
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        if (other.GetComponent<BuildingScript>() != null)
-        {
-            //objectsInRange.Remove(other.gameObject);
-        }
-    }
-    */
 
     public void AddObjectInRange(GameObject obj)
     {
         objectsInRange.Add(obj);
     }
 
-    // Method to remove objects from range
     public void RemoveObjectInRange(GameObject obj)
     {
         objectsInRange.Remove(obj);
     }
 
-    private void FindNearestBuilding()
+    private Transform FindNearestBuilding()
     {
         BuildingScript[] buildings = FindObjectsByType<BuildingScript>(FindObjectsSortMode.None);
         float nearestDistance = Mathf.Infinity;
@@ -95,7 +99,58 @@ public class Enemy : MonoBehaviour
             }
         }
 
-        target = nearestBuilding;
+        return nearestBuilding;
+    }
+
+    private void SetTarget()
+    {
+        Player player = FindObjectOfType<Player>();
+        BaseBuilding baseBuilding = FindObjectOfType<BaseBuilding>();
+        Transform nearestBuilding = FindNearestBuilding();
+        float distanceToNearestBuilding;
+        if (nearestBuilding == null)
+        {
+            distanceToNearestBuilding = Mathf.Infinity;
+        } else
+        {
+            distanceToNearestBuilding = Vector2.Distance(transform.position, nearestBuilding.transform.position);
+        }
+
+        float distanceToPlayer = Vector2.Distance(transform.position, player.transform.position);
+        float distanceToBase = Vector2.Distance(transform.position, baseBuilding.transform.position);
+
+        float closestDistance = Mathf.Min(distanceToPlayer, distanceToBase, distanceToNearestBuilding);
+        if (closestDistance == distanceToBase)
+        {
+            target = baseBuilding.transform;
+        }
+        else if (closestDistance == distanceToNearestBuilding)
+        {
+            target = nearestBuilding.transform;
+        }
+        else if (closestDistance == distanceToPlayer)
+        {
+            target = player.transform;
+        }
+
+    }
+
+    private void CalculateDesiredDistance()
+    {
+        if (target != null) { return; }
+        if (target.TryGetComponent<BaseBuilding>(out BaseBuilding baseBuilding))
+        {
+            // Currently for square, alter for rectangular shape
+            desiredDistanceFromTarget = 1f + baseBuilding.GetSize().x * 5f;
+        }
+        else if (target.TryGetComponent<BuildingScript>(out BuildingScript building))
+        {
+            desiredDistanceFromTarget = 1f + building.GetSize().x * 5f;
+        }
+        else if (target.TryGetComponent<Player>(out Player player))
+        {
+            desiredDistanceFromTarget = 1f;
+        }
     }
 
     private void MoveTowardsTarget()
@@ -104,88 +159,14 @@ public class Enemy : MonoBehaviour
         transform.position = Vector2.MoveTowards(transform.position, target.position, moveSpeed * Time.deltaTime);
     }
 
-    /*private IEnumerator PeriodicAttack()
-    {
-        while (true)
-        {
-            yield return new WaitForSeconds(attackInterval);
-            
-            if (objectsInRange.Count > 0)
-            {
-                isAttacking = true;
-
-                List<GameObject> objectsToRemove = new List<GameObject>();
-
-                // Attack all objects in range
-                foreach (GameObject obj in objectsInRange)
-                {
-                    if (obj != null)
-                    {
-                        BuildingScript building = obj.GetComponent<BuildingScript>();
-                        if (building != null)
-                        {
-                            building.TakeDamage(attackDamage);
-
-                            //Debug.Log("Checking if building is gone");
-                            if (building.GetHealth() <= 0)
-                            {
-                                //Debug.Log("Removing object");
-                                objectsToRemove.Add(obj);
-                            }
-                        }
-                    }
-                }
-                foreach (GameObject obj in objectsToRemove)
-                {
-                    //Debug.Log("Got here");
-                    objectsInRange.Remove(obj);
-                    obj.GetComponent<BuildingScript>().DelayedDestroy();
-                }
-                //Debug.Log("Finished attack");
-                isAttacking = false;
-            }
-        }
-    }
-    */
-    private void ActivateParticle()
+    public void ActivateParticle(bool withSound)
     {
         myParticleSystem.Play();
-    }
-
-    private void Attack()
-    {
-        if (objectsInRange.Count > 0)
+        if (withSound)
         {
-            List<GameObject> objectsToRemove = new List<GameObject>();
-
-            // Attack all objects in range
-            foreach (GameObject obj in objectsInRange)
-            {
-                if (obj != null)
-                {
-                    BuildingScript building = obj.GetComponent<BuildingScript>();
-                    if (building != null)
-                    {
-                        building.TakeDamage(attackDamage);
-
-                        //Debug.Log("Checking if building is gone");
-                        if (building.GetHealth() <= 0)
-                        {
-                            //Debug.Log("Removing object");
-                            objectsToRemove.Add(obj);
-                        }
-                    }
-                }
-            }
-            foreach (GameObject obj in objectsToRemove)
-            {
-                //Debug.Log("Got here");
-                objectsInRange.Remove(obj);
-                obj.GetComponent<BuildingScript>().DelayedDestroy();
-            }
-            ActivateParticle();
-            //Debug.Log("Finished attack");
+            audioManager.Play(particleSFX);
         }
+        
     }
 
     public int GetHealth()
@@ -195,10 +176,31 @@ public class Enemy : MonoBehaviour
 
     public void TakeHit(int damage)
     {
+        if (health <= 0) { return; }
         health -= damage;
+        hitEffect.Play();
         if (health <= 0)
         {
+            stormManager.RemoveFromAliveList(gameObject);
             Destroy(gameObject);
+            stormManager.DecreaseStormHealth(MAX_HEALTH);
+            
         }
+    }
+
+    private void SpawnEffect()
+    {
+        myParticleSystem.Play();
+        StartCoroutine(stormManager.CallThunder());
+    }
+
+    public void SetIndex(int value)
+    {
+        aliveIndex = value;
+    }
+
+    public int GetIndex()
+    {
+        return aliveIndex;
     }
 }

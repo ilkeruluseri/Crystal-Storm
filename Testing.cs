@@ -19,13 +19,13 @@ public class Testing : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetMouseButtonDown(0) && buildManager.IsSelected() && !EventSystem.current.IsPointerOverGameObject())
+        if (Input.GetMouseButton(0) && buildManager.IsSelected() && !EventSystem.current.IsPointerOverGameObject())
         {
             if (CanPlace())
             {
                 Place();
             }
-        } else if (Input.GetMouseButtonDown(0) && buildManager.IsRemoving())
+        } else if (Input.GetMouseButton(0) && buildManager.IsRemoving())
         {
             Vector2 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             RaycastHit2D hit = Physics2D.Raycast(mousePosition, Vector2.zero);
